@@ -10,8 +10,6 @@ import pickle
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-# --- --- ---
-
 MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDINGS_FILE = Path("data/embeddings.pkl")
 
@@ -24,6 +22,7 @@ def load_embeddings():
         payload = pickle.load(f)
 
     return payload["data"], payload["embeddings"]
+
 
 
 def retrieve(query: str, top_k: int = 30):
@@ -43,8 +42,8 @@ def retrieve(query: str, top_k: int = 30):
 def balanced_recommend(query: str, top_k: int = 10):
     """
     Balanced recommendation:
-    - Filters junk entries
-    - Returns mix of technical + behavioral assessments
+    Filters junk entries
+    Returns mix of technical + behavioral assessments
     """
     candidates = retrieve(query, top_k=40)
 
