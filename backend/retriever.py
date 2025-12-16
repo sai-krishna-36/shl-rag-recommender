@@ -1,22 +1,33 @@
 import sys
 from pathlib import Path
-
-# --- Ensure backend/ is on Python path ---
-BASE_DIR = Path(__file__).resolve().parent
-if str(BASE_DIR) not in sys.path:
-    sys.path.append(str(BASE_DIR))
-
 import pickle
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+# --- Path setup (critical for Render) ---
+BASE_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = BASE_DIR / "backend"
+DATA_DIR = BASE_DIR / "data"
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
+
+from embedder import build_embeddings, save_embeddings
+
 MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDINGS_FILE = Path("data/embeddings.pkl")
+EMBEDDINGS_FILE = DATA_DIR / "embeddings.pkl"
 
 
 def load_embeddings():
+    """
+    Load embeddings if present.
+    If missing, generate them at runtime (Render-safe).
+    """
     if not EMBEDDINGS_FILE.exists():
-        raise FileNotFoundError("Embeddings file not found. Run embedder.py first.")
+        print("Embeddings not found. Generating embeddings...")
+        data, vectors = build_embeddings()
+        save_embeddings(data, vectors)
+        print("Embeddings generated and saved.")
 
     with open(EMBEDDINGS_FILE, "rb") as f:
         payload = pickle.load(f)
@@ -24,11 +35,7 @@ def load_embeddings():
     return payload["data"], payload["embeddings"]
 
 
-
 def retrieve(query: str, top_k: int = 30):
-    """
-    Pure semantic retrieval using cosine similarity.
-    """
     data, embeddings = load_embeddings()
     model = SentenceTransformer(MODEL_NAME)
 
@@ -40,42 +47,22 @@ def retrieve(query: str, top_k: int = 30):
 
 
 def balanced_recommend(query: str, top_k: int = 10):
-    """
-    Balanced recommendation:
-    Filters junk entries
-    Returns mix of technical + behavioral assessments
-    """
     candidates = retrieve(query, top_k=40)
 
-    tech = []
-    behavior = []
-
+    tech, behavior = [], []
     blacklist = [
         "view all shl products",
         "ultimate view of potential"
     ]
 
     for item in candidates:
-        name_lower = item["name"].lower()
-
-        # Remove junk / marketing links
-        if any(bad in name_lower for bad in blacklist):
+        name = item["name"].lower()
+        if any(bad in name for bad in blacklist):
             continue
 
-        if "personality" in name_lower or "behavior" in name_lower:
+        if "personality" in name or "behavior" in name:
             behavior.append(item)
         else:
             tech.append(item)
 
-    # 60% technical, 40% behavioral
-    results = tech[:6] + behavior[:4]
-    return results[:top_k]
-
-# Local test
-
-if __name__ == "__main__":
-    query = "Hiring a Java developer who collaborates with stakeholders"
-    results = balanced_recommend(query)
-
-    for r in results:
-        print(r["name"])
+    return (tech[:6] + behavior[:4])[:top_k]
