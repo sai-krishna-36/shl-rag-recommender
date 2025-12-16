@@ -1,0 +1,11 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Data artifacts
+data/embeddings.pkl
+
+# OS junk
+.DS_Store
+Thumbs.db
